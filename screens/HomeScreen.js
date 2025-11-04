@@ -1,20 +1,23 @@
-import { StyleSheet, Text, View, ScrollView, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, RefreshControl, Dimensions, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState, useEffect } from 'react';
+import { LineChart } from 'react-native-chart-kit';
+import { config } from '../config/app.config';
+import { useTheme } from '../contexts/ThemeContext';
 
-const API_URL = 'http://192.168.1.253:5000';
-
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
   const [portfolioSummary, setPortfolioSummary] = useState(null);
-  const [positions, setPositions] = useState([]);
+  const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [strategyVersion, setStrategyVersion] = useState('Loading...');
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, config.refreshInterval);
     return () => clearInterval(interval);
   }, []);
 
@@ -23,15 +26,40 @@ export default function HomeScreen() {
       if (isRefreshing) setRefreshing(true);
       setError(null);
 
-      const summaryResponse = await fetch(`${API_URL}/api/portfolio_summary`);
+      const summaryResponse = await fetch(`${config.apiUrl}/api/portfolio_summary`);
       if (!summaryResponse.ok) throw new Error('Portfolio API failed');
       const summaryData = await summaryResponse.json();
       setPortfolioSummary(summaryData);
 
-      const positionsResponse = await fetch(`${API_URL}/api/positions`);
-      if (!positionsResponse.ok) throw new Error('Positions API failed');
-      const positionsData = await positionsResponse.json();
-      setPositions(positionsData);
+      const signalsResponse = await fetch(`${config.apiUrl}/api/signals_by_stock`);
+      if (!signalsResponse.ok) throw new Error('Signals API failed');
+      const signalsData = await signalsResponse.json();
+
+      // Sort by most recent signal and take top stocks
+      if (Array.isArray(signalsData)) {
+        signalsData.sort((a, b) => {
+          const latestA = a.signals && a.signals.length > 0
+            ? new Date(a.signals[0].signal_date)
+            : new Date(0);
+          const latestB = b.signals && b.signals.length > 0
+            ? new Date(b.signals[0].signal_date)
+            : new Date(0);
+          return latestB - latestA;
+        });
+      }
+
+      setSignals(signalsData);
+
+      // Fetch current strategy version from dedicated endpoint
+      try {
+        const versionResponse = await fetch(`${config.apiUrl}/api/version`);
+        if (versionResponse.ok) {
+          const versionData = await versionResponse.json();
+          setStrategyVersion(`Dad's Bollinger Strategy v${versionData.version}`);
+        }
+      } catch (versionErr) {
+        console.error('Error fetching version:', versionErr);
+      }
 
       setLoading(false);
       setRefreshing(false);
@@ -47,18 +75,20 @@ export default function HomeScreen() {
     fetchData(true);
   };
 
+  const styles = getStyles(theme);
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 20 }}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ffffff" />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.text} />
       }
     >
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Trading Dashboard</Text>
-        <Text style={styles.headerSubtitle}>Dad's Bollinger Strategy v3.24</Text>
+        <Text style={styles.headerSubtitle}>{strategyVersion}</Text>
       </View>
 
       {loading && (
@@ -82,8 +112,8 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Portfolio Summary</Text>
           <View style={styles.card}>
             <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Open Positions</Text>
-              <Text style={styles.statValue}>{portfolioSummary.position_count}</Text>
+              <Text style={styles.statLabel}>Active Signals</Text>
+              <Text style={styles.statValue}>{signals.reduce((sum, stock) => sum + (stock.signals?.length || 0), 0)}</Text>
             </View>
             <View style={styles.statRow}>
               <Text style={styles.statLabel}>Total P&L</Text>
@@ -105,40 +135,56 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* Recent Positions Preview */}
-      {!loading && !error && positions.length > 0 && (
+      {/* Top Symbols Performance */}
+      {!loading && !error && signals.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Positions (Top 3)</Text>
-          {positions.slice(0, 3).map((position, index) => (
-            <View key={index} style={[styles.card, { marginBottom: 12 }]}>
-              <View style={styles.positionHeader}>
-                <Text style={styles.symbolText}>{position.symbol}</Text>
-                <Text style={[styles.profitBadge, position.profit_pct >= 0 ? styles.profitBg : styles.lossBg]}>
-                  {position.profit_pct >= 0 ? '+' : ''}{position.profit_pct.toFixed(2)}%
-                </Text>
-              </View>
-              <View style={styles.positionDetails}>
-                <Text style={styles.detailText}>Entry: ${position.entry_price.toFixed(2)}</Text>
-                <Text style={styles.detailText}>Current: ${position.current_price.toFixed(2)}</Text>
-              </View>
-              <View style={styles.positionDetails}>
-                <Text style={styles.detailText}>Qty: {position.quantity}</Text>
-                <Text style={[styles.detailText, position.profit_dollars >= 0 ? styles.profitText : styles.lossText]}>
-                  ${position.profit_dollars >= 0 ? '+' : ''}{position.profit_dollars.toFixed(0)}
-                </Text>
-              </View>
-            </View>
-          ))}
+          <Text style={styles.sectionTitle}>Top Symbols (by avg today profit)</Text>
+          {signals
+            .map(stock => {
+              // Calculate average profit across all signals for this stock
+              let avgProfit = 0;
+              if (stock.signals && stock.signals.length > 0) {
+                const validSignals = stock.signals.filter(s => s.today?.profit_pct !== undefined);
+                if (validSignals.length > 0) {
+                  const sum = validSignals.reduce((acc, s) => acc + (s.today.profit_pct || 0), 0);
+                  avgProfit = sum / validSignals.length;
+                }
+              }
+              return { ...stock, avgProfit };
+            })
+            .sort((a, b) => b.avgProfit - a.avgProfit)
+            .slice(0, 5)
+            .map((stock, index) => {
+              const isProfit = stock.avgProfit >= 0;
+              return (
+                <View key={index} style={[styles.card, { marginBottom: 12 }]}>
+                  <View style={styles.signalPerformanceRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.symbolText}>{stock.symbol}</Text>
+                      <Text style={styles.signalCountText}>
+                        {stock.signals?.length || 0} signal{stock.signals?.length > 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                    <View style={[styles.profitBadge, isProfit ? styles.profitBg : styles.lossBg]}>
+                      <Text style={[styles.profitBadgeText, { color: isProfit ? '#10b981' : '#ef4444' }]}>
+                        {stock.avgProfit >= 0 ? '+' : ''}{stock.avgProfit.toFixed(1)}%
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
         </View>
       )}
+
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: theme.background,
   },
   header: {
     padding: 20,
@@ -147,12 +193,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: theme.text,
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#64748b',
+    color: theme.textTertiary,
   },
   section: {
     padding: 20,
@@ -161,15 +207,45 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#e2e8f0',
+    color: theme.text,
     marginBottom: 12,
   },
   card: {
-    backgroundColor: '#1e293b',
+    backgroundColor: theme.cardBackground,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: theme.border,
+  },
+  signalPerformanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  symbolText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.text,
+    marginBottom: 4,
+  },
+  signalCountText: {
+    fontSize: 12,
+    color: theme.textTertiary,
+  },
+  profitBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  profitBadgeText: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  profitBg: {
+    backgroundColor: theme.profitBg,
+  },
+  lossBg: {
+    backgroundColor: theme.lossBg,
   },
   statRow: {
     flexDirection: 'row',
@@ -179,40 +255,40 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 16,
-    color: '#94a3b8',
+    color: theme.textSecondary,
   },
   statValue: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#ffffff',
+    color: theme.text,
   },
   profitText: {
-    color: '#10b981',
+    color: theme.profit,
   },
   lossText: {
-    color: '#ef4444',
+    color: theme.loss,
   },
   emptyText: {
     fontSize: 16,
-    color: '#94a3b8',
+    color: theme.textSecondary,
     textAlign: 'center',
     marginBottom: 4,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#64748b',
+    color: theme.textTertiary,
     textAlign: 'center',
   },
   errorCard: {
-    backgroundColor: '#1e293b',
+    backgroundColor: theme.cardBackground,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#ef4444',
+    borderColor: theme.loss,
   },
   errorText: {
     fontSize: 16,
-    color: '#ef4444',
+    color: theme.loss,
     textAlign: 'center',
     marginBottom: 4,
   },
@@ -222,26 +298,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  symbolText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  profitBadge: {
-    fontSize: 16,
-    fontWeight: '600',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  profitBg: {
-    backgroundColor: '#10b98120',
-    color: '#10b981',
-  },
-  lossBg: {
-    backgroundColor: '#ef444420',
-    color: '#ef4444',
-  },
   positionDetails: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -249,6 +305,6 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: theme.textSecondary,
   },
 });

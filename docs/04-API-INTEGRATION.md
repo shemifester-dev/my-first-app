@@ -57,7 +57,7 @@ const API_URL = 'http://192.168.1.253:5000';
     "profit_dollars": -82.0,
     "current_stop": 120.83,
     "initial_stop": 119.61,
-    "strategy": "Dad's Bollinger Bands Strategy v3.6",
+    "strategy": "Dad's Bollinger Bands Strategy v3.32",
     "entry_date": "2025-10-21T19:25:09.480659",
     "profit_taken_50pct": false,
     "days_held": 8

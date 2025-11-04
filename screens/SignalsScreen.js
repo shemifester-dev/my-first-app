@@ -1,9 +1,12 @@
-import { StyleSheet, Text, View, ScrollView, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { useState, useEffect } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { config } from '../config/app.config';
+import { useTheme } from '../contexts/ThemeContext';
 
-const API_URL = 'http://192.168.1.253:5000';
-
-export default function SignalsScreen() {
+export default function SignalsScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -11,7 +14,7 @@ export default function SignalsScreen() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, config.refreshInterval);
     return () => clearInterval(interval);
   }, []);
 
@@ -20,34 +23,24 @@ export default function SignalsScreen() {
       if (isRefreshing) setRefreshing(true);
       setError(null);
 
-      const signalsResponse = await fetch(`${API_URL}/api/signals_by_stock`);
+      const signalsResponse = await fetch(`${config.apiUrl}/api/signals_by_stock`);
       if (!signalsResponse.ok) throw new Error('Signals API failed');
       const signalsData = await signalsResponse.json();
 
-      // Get all signals across all stocks
-      const allSignals = [];
+      // Keep data grouped by stock, sort by most recent signal
       if (Array.isArray(signalsData)) {
-        signalsData.forEach(stock => {
-          if (stock.signals && Array.isArray(stock.signals)) {
-            stock.signals.forEach(signal => {
-              allSignals.push({
-                ...signal,
-                symbol: stock.symbol,
-                timestamp: signal.signal_date || signal.timestamp
-              });
-            });
-          }
+        signalsData.sort((a, b) => {
+          const latestA = a.signals && a.signals.length > 0
+            ? new Date(a.signals[0].signal_date || a.signals[0].timestamp)
+            : new Date(0);
+          const latestB = b.signals && b.signals.length > 0
+            ? new Date(b.signals[0].signal_date || b.signals[0].timestamp)
+            : new Date(0);
+          return latestB - latestA;
         });
       }
 
-      // Sort by timestamp (newest first)
-      allSignals.sort((a, b) => {
-        const dateA = new Date(a.timestamp);
-        const dateB = new Date(b.timestamp);
-        return dateB - dateA;
-      });
-
-      setSignals(allSignals);
+      setSignals(signalsData);
       setLoading(false);
       setRefreshing(false);
     } catch (err) {
@@ -64,22 +57,26 @@ export default function SignalsScreen() {
 
   const getSignalColor = (signalType) => {
     if (signalType === 'BUY' || signalType === 'BREAKOUT') {
-      return '#10b981';
+      return theme.profit;
     }
-    return '#ef4444';
+    return theme.loss;
   };
+
+  const styles = getStyles(theme);
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: 20 }}
+      contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 20 }}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ffffff" />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.text} />
       }
     >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Trading Signals</Text>
-        <Text style={styles.headerSubtitle}>{signals.length} signals tracked</Text>
+        <Text style={styles.headerSubtitle}>
+          {signals.length} stocks • {signals.reduce((sum, stock) => sum + (stock.signals?.length || 0), 0)} signals
+        </Text>
       </View>
 
       {loading && (
@@ -105,67 +102,70 @@ export default function SignalsScreen() {
 
       {!loading && !error && signals.length > 0 && (
         <View style={styles.section}>
-          {signals.map((signal, index) => {
-            const signalColor = getSignalColor(signal.signal_type);
-            const todayProfit = signal.today ? signal.today.profit_pct : null;
-
-            return (
-              <View key={index} style={[styles.card, { marginBottom: 12 }]}>
-                <View style={styles.signalHeader}>
-                  <View>
-                    <Text style={styles.symbolText}>{signal.symbol}</Text>
-                    <Text style={styles.dateText}>
-                      {new Date(signal.timestamp).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </Text>
-                  </View>
-                  <View style={styles.signalBadgeContainer}>
-                    <Text style={[styles.signalBadge, { color: signalColor, borderColor: signalColor }]}>
-                      {signal.signal_type}
-                    </Text>
-                    {todayProfit !== null && (
-                      <Text style={[styles.profitText, todayProfit >= 0 ? styles.profit : styles.loss]}>
-                        {todayProfit >= 0 ? '+' : ''}{todayProfit.toFixed(2)}%
-                      </Text>
-                    )}
-                  </View>
+          {signals.map((stock, stockIndex) => (
+            <View key={stockIndex} style={[styles.card, { marginBottom: 16 }]}>
+              {/* Stock Header */}
+              <View style={styles.stockHeader}>
+                <View>
+                  <Text style={styles.symbolText}>{stock.symbol}</Text>
+                  <Text style={styles.stockSubtitle}>
+                    {stock.total_signals} signals • Avg 7d: {stock.avg_profit_7d ? `${stock.avg_profit_7d.toFixed(2)}%` : 'N/A'}
+                  </Text>
                 </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.detailsRow}>
-                  <View style={styles.detailItem}>
-                    <Text style={styles.detailLabel}>Signal Price</Text>
-                    <Text style={styles.detailValue}>${signal.signal_price.toFixed(2)}</Text>
-                  </View>
-                  {signal.today && (
-                    <View style={styles.detailItem}>
-                      <Text style={styles.detailLabel}>Current Price</Text>
-                      <Text style={styles.detailValue}>${signal.today.price.toFixed(2)}</Text>
-                    </View>
-                  )}
-                </View>
-
-                {signal.strategy_version && (
-                  <Text style={styles.strategyText}>Strategy: {signal.strategy_version}</Text>
-                )}
               </View>
-            );
-          })}
+
+              {/* Signals List */}
+              {stock.signals && stock.signals.map((signal, signalIndex) => {
+                const signalColor = getSignalColor(signal.signal_type);
+                const todayProfit = signal.today ? signal.today.profit_pct : null;
+
+                return (
+                  <View key={signalIndex}>
+                    <View style={styles.divider} />
+                    <TouchableOpacity
+                      style={styles.signalRow}
+                      onPress={() => navigation.navigate('SignalDetail', { signal, symbol: stock.symbol })}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.signalInfo}>
+                          <Text style={[styles.signalTypeBadge, { color: signalColor }]}>
+                            {signal.signal_type}
+                          </Text>
+                          <Text style={styles.signalDate}>
+                            {new Date(signal.signal_date).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </Text>
+                        </View>
+                        <Text style={styles.signalPrice}>${signal.signal_price.toFixed(2)}</Text>
+                      </View>
+                      {todayProfit !== null && (
+                        <View style={styles.profitContainer}>
+                          <Text style={[styles.profitValue, todayProfit >= 0 ? styles.profit : styles.loss]}>
+                            {todayProfit >= 0 ? '+' : ''}{todayProfit.toFixed(2)}%
+                          </Text>
+                          {signal.today && (
+                            <Text style={styles.currentPrice}>${signal.today.price.toFixed(2)}</Text>
+                          )}
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          ))}
         </View>
       )}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: theme.background,
   },
   header: {
     padding: 20,
@@ -174,64 +174,82 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: theme.text,
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#64748b',
+    color: theme.textTertiary,
   },
   section: {
     padding: 20,
     paddingTop: 10,
   },
   card: {
-    backgroundColor: '#1e293b',
+    backgroundColor: theme.cardBackground,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: theme.border,
   },
-  signalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  stockHeader: {
+    marginBottom: 8,
   },
   symbolText: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: theme.text,
     marginBottom: 4,
   },
-  dateText: {
+  stockSubtitle: {
     fontSize: 12,
-    color: '#64748b',
+    color: theme.textTertiary,
   },
-  signalBadgeContainer: {
+  signalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  signalInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  signalTypeBadge: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  signalDate: {
+    fontSize: 12,
+    color: theme.textTertiary,
+  },
+  signalPrice: {
+    fontSize: 14,
+    color: theme.textSecondary,
+  },
+  profitContainer: {
     alignItems: 'flex-end',
   },
-  signalBadge: {
-    fontSize: 14,
-    fontWeight: '600',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    marginBottom: 6,
-  },
-  profitText: {
+  profitValue: {
     fontSize: 16,
     fontWeight: '600',
+    marginBottom: 2,
+  },
+  currentPrice: {
+    fontSize: 12,
+    color: theme.textSecondary,
   },
   profit: {
-    color: '#10b981',
+    color: theme.profit,
   },
   loss: {
-    color: '#ef4444',
+    color: theme.loss,
   },
   divider: {
     height: 1,
-    backgroundColor: '#334155',
+    backgroundColor: theme.border,
     marginVertical: 12,
   },
   detailsRow: {
@@ -244,40 +262,40 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 12,
-    color: '#64748b',
+    color: theme.textTertiary,
     marginBottom: 4,
   },
   detailValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: theme.text,
   },
   strategyText: {
     fontSize: 12,
-    color: '#64748b',
+    color: theme.textTertiary,
     marginTop: 4,
   },
   emptyText: {
     fontSize: 16,
-    color: '#94a3b8',
+    color: theme.textSecondary,
     textAlign: 'center',
     marginBottom: 4,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#64748b',
+    color: theme.textTertiary,
     textAlign: 'center',
   },
   errorCard: {
-    backgroundColor: '#1e293b',
+    backgroundColor: theme.cardBackground,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#ef4444',
+    borderColor: theme.loss,
   },
   errorText: {
     fontSize: 16,
-    color: '#ef4444',
+    color: theme.loss,
     textAlign: 'center',
     marginBottom: 4,
   },

@@ -1,9 +1,10 @@
 import { StyleSheet, Text, View, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { useState, useEffect } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { config } from '../config/app.config';
 
-const API_URL = 'http://192.168.1.253:5000';
-
-export default function PositionsScreen() {
+export default function PositionsScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -11,7 +12,7 @@ export default function PositionsScreen() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, config.refreshInterval);
     return () => clearInterval(interval);
   }, []);
 
@@ -20,9 +21,17 @@ export default function PositionsScreen() {
       if (isRefreshing) setRefreshing(true);
       setError(null);
 
-      const positionsResponse = await fetch(`${API_URL}/api/positions`);
+      const positionsResponse = await fetch(`${config.apiUrl}/api/positions`);
       if (!positionsResponse.ok) throw new Error('Positions API failed');
       const positionsData = await positionsResponse.json();
+
+      // Sort positions by entry date (newest first)
+      positionsData.sort((a, b) => {
+        const dateA = new Date(a.entry_date);
+        const dateB = new Date(b.entry_date);
+        return dateB - dateA;
+      });
+
       setPositions(positionsData);
 
       setLoading(false);
@@ -42,7 +51,7 @@ export default function PositionsScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: 20 }}
+      contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 20 }}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ffffff" />
       }
@@ -79,16 +88,19 @@ export default function PositionsScreen() {
             <TouchableOpacity
               key={index}
               style={[styles.card, { marginBottom: 12 }]}
+              onPress={() => navigation.navigate('PositionDetail', { position })}
               activeOpacity={0.7}
             >
               <View style={styles.positionHeader}>
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.symbolText}>{position.symbol}</Text>
                   <Text style={styles.strategyText}>{position.strategy}</Text>
                 </View>
-                <Text style={[styles.profitBadge, position.profit_pct >= 0 ? styles.profitBg : styles.lossBg]}>
-                  {position.profit_pct >= 0 ? '+' : ''}{position.profit_pct.toFixed(2)}%
-                </Text>
+                <View style={[styles.profitBadge, position.profit_pct >= 0 ? styles.profitBg : styles.lossBg]}>
+                  <Text style={[styles.profitBadgeText, { color: position.profit_pct >= 0 ? '#10b981' : '#ef4444' }]}>
+                    {position.profit_pct >= 0 ? '+' : ''}{position.profit_pct.toFixed(2)}%
+                  </Text>
+                </View>
               </View>
 
               <View style={styles.divider} />
@@ -166,6 +178,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#334155',
+    overflow: 'hidden',
   },
   positionHeader: {
     flexDirection: 'row',
@@ -184,19 +197,19 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   profitBadge: {
-    fontSize: 18,
-    fontWeight: '600',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
   },
+  profitBadgeText: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
   profitBg: {
     backgroundColor: '#10b98120',
-    color: '#10b981',
   },
   lossBg: {
     backgroundColor: '#ef444420',
-    color: '#ef4444',
   },
   divider: {
     height: 1,
