@@ -62,6 +62,13 @@ The app provides a mobile interface to monitor trading signals and portfolio per
    - Live connection to trading bot API
    - Error handling and loading states
 
+7. **Push Notifications**
+   - Expo push notification integration
+   - Token registration with backend
+   - Notification listeners for received and tapped events
+   - Graceful error handling for service unavailability
+   - Ready for backend to send notifications
+
 ### Architecture
 
 ```
@@ -74,6 +81,8 @@ my-first-app/
 │   ├── SettingsScreen.js      # App settings & theme toggle
 │   ├── PositionDetailScreen.js # Legacy detail screen
 │   └── PositionsScreen.js     # Legacy positions (kept for reference)
+├── services/                   # Service modules
+│   └── notificationService.js # Push notification service
 ├── contexts/                   # React contexts
 │   └── ThemeContext.js        # Dark/light theme provider
 ├── config/                     # Configuration files
@@ -103,10 +112,13 @@ my-first-app/
 - ✅ Theme context with consistent styling
 - ✅ Centralized configuration
 - ✅ Strategy version fetched from API
+- ✅ Push notification service integrated
+- ✅ Token registration with backend
+- ✅ Notification listeners configured
 
 **Future Features:**
 - ⏳ Charts and performance graphs
-- ⏳ Push notifications for new signals
+- ⏳ Push notification handling and navigation
 - ⏳ Custom alert configuration
 - ⏳ Historical performance analysis
 - ⏳ WebSocket for real-time updates
@@ -122,5 +134,18 @@ The app connects to a Flask API running on the same local network:
   - `/api/signals_by_stock` - All trading signals grouped by stock
   - `/api/version` - Current strategy version
   - `/api/positions` - Open positions (legacy, kept for reference)
+  - `/api/register-push-token` - Register device push notification tokens
 
 The trading bot tracks stocks using "Dad's Bollinger Strategy" (version displayed dynamically from API) and provides real-time data about signals being watched. The bot monitors signals without executing actual trades.
+
+### Push Notification Setup
+
+The app uses Expo's push notification service to receive notifications:
+
+1. **Configuration:** Project ID configured in `app.json` (`60e6b6b9-cdf4-4fa0-a901-967e6395fcb3`)
+2. **Permissions:** iOS and Android notification permissions requested on app startup
+3. **Token Generation:** Expo generates a unique push token for each device
+4. **Backend Registration:** Token is sent to trading bot backend via `/api/register-push-token`
+5. **Graceful Degradation:** App works even if Expo's service is temporarily unavailable
+
+The backend can use the registered tokens to send push notifications via Expo's Push API.

@@ -8,6 +8,6 @@ export const config = {
   refreshInterval: 30000,
 
   // App Information
-  appVersion: '1.1.0',
+  appVersion: '1.2.0',
   appName: 'Trading Dashboard',
 };

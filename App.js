@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useEffect } from 'react';
 
 import HomeScreen from './screens/HomeScreen';
 import SignalsScreen from './screens/SignalsScreen';
@@ -10,6 +11,7 @@ import SettingsScreen from './screens/SettingsScreen';
 import PositionDetailScreen from './screens/PositionDetailScreen';
 import SignalDetailScreen from './screens/SignalDetailScreen';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import notificationService from './services/notificationService';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -100,6 +102,42 @@ function AppNavigator() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Initialize push notifications on app startup
+    const initializeNotifications = async () => {
+      try {
+        const success = await notificationService.initialize();
+        if (success) {
+          console.log('Push notifications initialized successfully');
+        } else {
+          console.log('Failed to initialize push notifications');
+        }
+      } catch (error) {
+        console.error('Error initializing push notifications:', error);
+      }
+    };
+
+    initializeNotifications();
+
+    // Set up notification listeners
+    notificationService.setupNotificationListeners(
+      (notification) => {
+        // Handle notification received while app is running
+        console.log('Received notification:', notification.request.content);
+      },
+      (response) => {
+        // Handle notification tapped
+        console.log('User tapped notification:', response.notification.request.content);
+        // You can navigate to specific screen based on notification data here
+      }
+    );
+
+    // Clean up listeners on unmount
+    return () => {
+      notificationService.removeNotificationListeners();
+    };
+  }, []);
+
   return (
     <SafeAreaProvider>
       <ThemeProvider>

@@ -42,6 +42,11 @@ This mobile app provides a clean, real-time interface to monitor your trading bo
   - Pull-to-refresh on all screens
   - Clean error handling
 
+- **Push Notifications**
+  - Expo push notification integration
+  - Automatic token registration with backend
+  - Ready to receive notifications from trading bot
+
 ## Quick Start
 
 ### Prerequisites
@@ -81,6 +86,8 @@ my-first-app/
 │   ├── SignalDetailScreen.js  # Individual signal details
 │   ├── SettingsScreen.js      # App settings & theme toggle
 │   └── PositionsScreen.js     # Legacy (kept for reference)
+├── services/                   # Service modules
+│   └── notificationService.js # Push notification service
 ├── contexts/                   # React contexts
 │   └── ThemeContext.js        # Dark/light theme provider
 ├── config/                     # Configuration
@@ -208,6 +215,7 @@ The app connects to your trading bot's Flask API:
 - `GET /api/signals_by_stock` - All trading signals grouped by stock
 - `GET /api/version` - Current strategy version
 - `GET /api/positions` - Open positions (legacy, kept for reference)
+- `POST /api/register-push-token` - Register device push notification tokens
 
 See [API Integration docs](docs/04-API-INTEGRATION.md) for details.
 
@@ -248,11 +256,13 @@ See [Setup Guide](docs/02-SETUP-GUIDE.md) for more troubleshooting tips.
 - ✅ Theme context with consistent styling
 - ✅ Centralized configuration
 - ✅ Auto-refresh and pull-to-refresh
+- ✅ Push notification service integration
+- ✅ Token registration with backend
 
 ### Future Plans
 
 - ⏳ Charts and performance graphs
-- ⏳ Push notifications for new signals
+- ⏳ Push notification handling and navigation
 - ⏳ Custom alert configuration
 - ⏳ Historical performance analysis
 - ⏳ WebSocket for real-time updates
