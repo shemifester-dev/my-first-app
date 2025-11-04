@@ -6,84 +6,121 @@ This is a React Native mobile application built with Expo that displays real-tim
 
 ### Project Purpose
 
-The app provides a mobile interface to monitor trading positions, signals, and portfolio performance from your trading bot anywhere on your iPhone.
+The app provides a mobile interface to monitor trading signals and portfolio performance from your trading bot anywhere on your iPhone. The app focuses on tracking signals being watched by the bot rather than actual positions, since the bot monitors signals without executing trades.
 
 ### Technology Stack
 
 - **Framework:** React Native (via Expo)
 - **Language:** JavaScript (React)
 - **UI:** React Native components with custom styling
-- **Navigation:** React Navigation (planned)
-- **State Management:** React Hooks (useState, useEffect)
+- **Navigation:** React Navigation (Bottom Tabs + Stack Navigator)
+- **State Management:** React Hooks (useState, useEffect) + Context API
 - **API Communication:** Fetch API
 - **Safe Area Handling:** react-native-safe-area-context
+- **Theme Management:** React Context API (ThemeContext)
+- **Charts:** react-native-chart-kit (ready for future use)
+- **SVG Support:** react-native-svg
 
 ### Key Features
 
 1. **Portfolio Summary**
    - Total P&L (profit/loss percentage and dollars)
-   - Number of open positions
+   - Number of active signals being tracked
    - Portfolio allocation percentage
+   - Strategy version display (fetched from API)
 
-2. **Position Monitoring**
-   - View all open positions
-   - Entry price, current price, quantity
-   - Profit/loss for each position
-   - Days held, stop-loss levels
-
-3. **Trading Signals**
-   - Historical trading signals
+2. **Signal Tracking**
+   - View all signals grouped by stock symbol
+   - Multiple signals per symbol support
    - Signal type (BUY, SELL, BREAKOUT, BREAKDOWN)
-   - Signal performance tracking
+   - Entry price, current price, today's profit/loss
+   - Top 5 symbols ranked by average profit
 
-4. **Real-time Updates**
-   - Auto-refresh every 30 seconds
+3. **Signal Detail View**
+   - Comprehensive signal information
+   - Strategy version and signal type
+   - Historical outcomes (1/3/7/14/30 day performance)
+   - Technical indicators (resistance, support, breakout type, etc.)
+   - Today's price and profit/loss tracking
+   - Tappable signals for detail navigation
+
+4. **Theme Support**
+   - Dark and light theme options
+   - Theme toggle in settings
+   - Consistent theming across all screens
+   - Dynamic colors for text, cards, borders, profit/loss
+
+5. **Navigation**
+   - Bottom tab navigation (Home, Signals, Settings)
+   - Stack navigation for detail screens
+   - Proper iPhone notch handling
+   - Back navigation with header
+
+6. **Real-time Updates**
+   - Auto-refresh every 30 seconds (configurable)
    - Pull-to-refresh on all screens
    - Live connection to trading bot API
+   - Error handling and loading states
 
 ### Architecture
 
 ```
 my-first-app/
-├── App.js                 # Main app entry point
-├── screens/               # Screen components
-│   ├── HomeScreen.js      # Portfolio summary + top positions
-│   ├── PositionsScreen.js # All positions (not active yet)
-│   ├── SignalsScreen.js   # Trading signals (not active yet)
-│   └── SettingsScreen.js  # App settings (not active yet)
-├── components/            # Reusable components (empty for now)
-├── docs/                  # Documentation
-├── package.json           # Dependencies
-└── node_modules/          # Installed packages
+├── App.js                      # Main app with navigation setup
+├── screens/                    # Screen components
+│   ├── HomeScreen.js          # Portfolio summary & top 5 symbols
+│   ├── SignalsScreen.js       # All signals grouped by stock
+│   ├── SignalDetailScreen.js  # Individual signal details
+│   ├── SettingsScreen.js      # App settings & theme toggle
+│   ├── PositionDetailScreen.js # Legacy detail screen
+│   └── PositionsScreen.js     # Legacy positions (kept for reference)
+├── contexts/                   # React contexts
+│   └── ThemeContext.js        # Dark/light theme provider
+├── config/                     # Configuration files
+│   └── app.config.js          # API URL, refresh interval, version
+├── components/                 # Reusable components (empty for now)
+├── docs/                       # Documentation
+├── assets/                     # Images, icons
+├── package.json                # Dependencies
+└── node_modules/               # Installed packages
 ```
 
 ### Current Status
 
 **Working Features:**
-- ✅ Portfolio summary display
-- ✅ Top 3 positions preview
+- ✅ Portfolio summary display with P&L tracking
+- ✅ Top 5 symbols by average profit
 - ✅ Real-time data fetching from trading bot API
 - ✅ Pull-to-refresh functionality
-- ✅ Auto-refresh every 30 seconds
+- ✅ Auto-refresh every 30 seconds (configurable)
 - ✅ Proper iPhone notch/safe area handling
 - ✅ Error handling and loading states
+- ✅ Bottom tab navigation (3 tabs: Home, Signals, Settings)
+- ✅ Full signals screen grouped by stock
+- ✅ Individual signal detail screens
+- ✅ Stack navigation for detail views
+- ✅ Dark and light theme support
+- ✅ Theme context with consistent styling
+- ✅ Centralized configuration
+- ✅ Strategy version fetched from API
 
-**Planned Features:**
-- ⏳ Bottom tab navigation (4 screens)
-- ⏳ Detailed positions screen
-- ⏳ Full signals history screen
-- ⏳ Settings and preferences
+**Future Features:**
+- ⏳ Charts and performance graphs
 - ⏳ Push notifications for new signals
-- ⏳ Charts and graphs
-- ⏳ Individual position detail views
+- ⏳ Custom alert configuration
+- ⏳ Historical performance analysis
+- ⏳ WebSocket for real-time updates
+- ⏳ Filter and sort signals
+- ⏳ Search functionality
 
 ### Trading Bot Integration
 
 The app connects to a Flask API running on the same local network:
-- **API URL:** `http://192.168.1.253:5000`
+- **API URL:** `http://192.168.1.253:5000` (configurable in `config/app.config.js`)
 - **Endpoints Used:**
-  - `/api/portfolio_summary` - Portfolio overview
-  - `/api/positions` - All open positions
-  - `/api/signals_by_stock` - Trading signals history
+  - `/api/portfolio_summary` - Portfolio overview (P&L, allocation)
+  - `/api/signals_by_stock` - All trading signals grouped by stock
+  - `/api/version` - Current strategy version
+  - `/api/positions` - Open positions (legacy, kept for reference)
 
-The trading bot tracks stocks using "Dad's Bollinger Strategy v3.24" and provides real-time data about positions and signals.
+The trading bot tracks stocks using "Dad's Bollinger Strategy" (version displayed dynamically from API) and provides real-time data about signals being watched. The bot monitors signals without executing actual trades.

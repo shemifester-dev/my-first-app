@@ -8,28 +8,37 @@ A React Native mobile application for monitoring your trading bot portfolio in r
 
 ## Overview
 
-This mobile app provides a clean, real-time interface to monitor your trading bot's performance, open positions, and trading signals from your iPhone. It connects to your Python trading bot's Flask API over your local network.
+This mobile app provides a clean, real-time interface to monitor your trading bot's performance and trading signals from your iPhone. It connects to your Python trading bot's Flask API over your local network. The app focuses on tracking signals and their performance rather than actual positions, since the bot monitors signals without executing trades.
 
 ### Features
 
 - **Real-time Portfolio Monitoring**
   - Total P&L (profit/loss) tracking
-  - Open positions count
+  - Active signals count
   - Portfolio allocation percentage
+  - Strategy version display
 
-- **Position Tracking**
-  - View all open positions
-  - Entry/current prices and quantities
-  - Individual position P&L
-  - Stop-loss levels and days held
-
-- **Trading Signals**
-  - Historical signal tracking
+- **Signal Tracking**
+  - View all signals grouped by symbol
   - Signal type (BUY, SELL, BREAKOUT, BREAKDOWN)
-  - Performance tracking for each signal
+  - Entry price, current price, and today's profit/loss
+  - Multiple signals per symbol support
+  - Top 5 symbols by average profit
+
+- **Signal Detail View**
+  - Comprehensive signal information
+  - Strategy version and signal type
+  - Historical outcomes (1/3/7/14/30 day performance)
+  - Technical indicators (resistance, support, breakout type, etc.)
+  - Today's price and profit/loss tracking
+
+- **Theme Support**
+  - Dark and light theme options
+  - Theme toggle in settings
+  - Consistent theming across all screens
 
 - **Auto-Refresh**
-  - Data updates every 30 seconds
+  - Data updates every 30 seconds (configurable)
   - Pull-to-refresh on all screens
   - Clean error handling
 
@@ -65,14 +74,19 @@ npx expo start
 
 ```
 my-first-app/
-├── App.js                 # Main app entry point
-├── screens/               # Screen components
-│   ├── HomeScreen.js      # Portfolio summary (active)
-│   ├── PositionsScreen.js # All positions
-│   ├── SignalsScreen.js   # Trading signals
-│   └── SettingsScreen.js  # App settings
-├── docs/                  # Comprehensive documentation
-└── package.json           # Dependencies
+├── App.js                      # Main app with navigation
+├── screens/                    # Screen components
+│   ├── HomeScreen.js          # Portfolio summary & top symbols
+│   ├── SignalsScreen.js       # All signals grouped by stock
+│   ├── SignalDetailScreen.js  # Individual signal details
+│   ├── SettingsScreen.js      # App settings & theme toggle
+│   └── PositionsScreen.js     # Legacy (kept for reference)
+├── contexts/                   # React contexts
+│   └── ThemeContext.js        # Dark/light theme provider
+├── config/                     # Configuration
+│   └── app.config.js          # API URL, refresh interval, etc.
+├── docs/                       # Comprehensive documentation
+└── package.json                # Dependencies
 ```
 
 ## Documentation
@@ -88,10 +102,15 @@ Detailed documentation is available in the `/docs` folder:
 
 ### Update API URL
 
-If your trading bot IP changes, update the API URL in `screens/HomeScreen.js`:
+If your trading bot IP changes, update the API URL in `config/app.config.js`:
 
 ```javascript
-const API_URL = 'http://YOUR_IP_HERE:5000';
+export const config = {
+  apiUrl: 'http://YOUR_IP_HERE:5000',
+  refreshInterval: 30000,  // 30 seconds
+  appVersion: '1.1.0',
+  appName: 'Trading Dashboard',
+};
 ```
 
 ### Trading Bot Setup
@@ -113,24 +132,40 @@ docker compose restart dashboard
 
 ## Usage
 
-### Main Screen
+### Home Tab
 
 The home screen shows:
-- Portfolio summary with total P&L
-- Top 3 open positions
+- Portfolio summary with total P&L and active signal count
+- Strategy version
+- Top 5 symbols ranked by average today's profit
 - Real-time data updates
+
+### Signals Tab
+
+View all trading signals:
+- Signals grouped by stock symbol
+- Multiple signals per symbol supported
+- Shows signal type, date, entry price, today's profit/loss
+- Tap any signal to view full details
+
+### Signal Details
+
+Tap on any signal to see:
+- Signal information (type, date, price, strategy version, status)
+- Today's performance (current price, profit/loss %)
+- Historical outcomes (1/3/7/14/30 day performance with prices)
+- Technical indicators (resistance, support, breakout type, etc.)
+
+### Settings Tab
+
+- Toggle between dark and light themes
+- View app version and info
+- See API connection details
 
 ### Refreshing Data
 
-- **Auto-refresh:** Every 30 seconds
-- **Manual refresh:** Pull down on the screen
-
-### Viewing Detailed Information
-
-*(Navigation coming soon)*
-- Tap on positions to see details
-- View full signal history
-- Adjust app settings
+- **Auto-refresh:** Every 30 seconds (configurable)
+- **Manual refresh:** Pull down on any screen
 
 ## Development
 
@@ -158,17 +193,21 @@ Console output appears in the terminal where you ran `npx expo start`.
 
 - **React Native** - Mobile framework
 - **Expo** - Development platform
-- **React Navigation** - Navigation library (coming soon)
+- **React Navigation** - Bottom tab and stack navigation
+- **React Context API** - Theme management
 - **Fetch API** - HTTP requests
 - **React Hooks** - State management
+- **react-native-chart-kit** - Charts (for future enhancements)
+- **react-native-svg** - SVG rendering support
 
 ## API Endpoints
 
 The app connects to your trading bot's Flask API:
 
-- `GET /api/portfolio_summary` - Portfolio overview
-- `GET /api/positions` - Open positions
-- `GET /api/signals_by_stock` - Trading signals
+- `GET /api/portfolio_summary` - Portfolio overview (P&L, allocation)
+- `GET /api/signals_by_stock` - All trading signals grouped by stock
+- `GET /api/version` - Current strategy version
+- `GET /api/positions` - Open positions (legacy, kept for reference)
 
 See [API Integration docs](docs/04-API-INTEGRATION.md) for details.
 
@@ -197,24 +236,29 @@ See [Setup Guide](docs/02-SETUP-GUIDE.md) for more troubleshooting tips.
 
 ## Roadmap
 
-### Coming Soon
+### Completed Features
 
 - ✅ Portfolio summary display
-- ✅ Position tracking
-- ✅ Signal history
-- ⏳ Bottom tab navigation (4 screens)
-- ⏳ Individual position detail screens
-- ⏳ Charts and graphs
-- ⏳ Push notifications for new signals
-- ⏳ Settings and preferences
+- ✅ Signal tracking (grouped by stock)
+- ✅ Bottom tab navigation (3 screens)
+- ✅ Individual signal detail screens
+- ✅ Dark/light theme toggle
+- ✅ Settings and preferences
+- ✅ Stack navigation for detail views
+- ✅ Theme context with consistent styling
+- ✅ Centralized configuration
+- ✅ Auto-refresh and pull-to-refresh
 
 ### Future Plans
 
-- WebSocket for real-time updates
-- Trade execution from mobile
-- Custom alert configuration
-- Historical performance analysis
-- Dark/light theme toggle
+- ⏳ Charts and performance graphs
+- ⏳ Push notifications for new signals
+- ⏳ Custom alert configuration
+- ⏳ Historical performance analysis
+- ⏳ WebSocket for real-time updates
+- ⏳ Trade execution from mobile (if bot supports)
+- ⏳ Filter and sort signals
+- ⏳ Search functionality
 
 ## Contributing
 
@@ -227,12 +271,12 @@ Private project - All rights reserved
 ## Acknowledgments
 
 - Built with assistance from Claude (Anthropic)
-- Trading strategy: "Dad's Bollinger Strategy v3.24"
+- Trading strategy: "Dad's Bollinger Strategy" (version displayed from API)
 - Powered by React Native and Expo
 
 ---
 
-**Note:** This app is for monitoring purposes only. Always verify data with your trading bot dashboard before making trading decisions.
+**Note:** This app is for monitoring purposes only. The bot watches signals and doesn't execute actual trades. Always verify data with your trading bot dashboard before making any trading decisions.
 
 ## Support
 
@@ -243,5 +287,5 @@ For issues or questions:
 
 ---
 
-**Last Updated:** October 30, 2025
-**Version:** 1.0.0
+**Last Updated:** November 4, 2025
+**Version:** 1.1.0
